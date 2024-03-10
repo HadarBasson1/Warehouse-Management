@@ -1,0 +1,11 @@
+﻿id,description,type,number_of_products
+1,Right Main Aisle,Straight line,80
+2,Center Warehouse,Square,60
+3,Back Storage,Zig-zag,15
+4,Loading Dock,Roundabout,2
+5,Picking Area,Straight line,30
+6,Sorting Room,Square,40
+7,Shipping Department,Zig-zag,20
+8,Receiving Area,Roundabout,5
+9,Outdoor Delivery Route,Straight line,1
+10,Long-Distance Delivery Route,Square,0
