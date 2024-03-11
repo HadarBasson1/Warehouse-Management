@@ -1,95 +1,220 @@
 
-from dotenv import load_dotenv
-from fastapi import FastAPI
-from pymongo.mongo_client import MongoClient
-from pymongo.server_api import ServerApi
-import os
+from datetime import datetime
+from fastapi import FastAPI, HTTPException
+from typing import List
+from models import Drone,Mission,Schedule,ScheduleCreatePayload,CreateDronePayload,UpdateStatusPayload,CreateMissonPayload,ModifyPossibleMissionsPayload
+from db.database import Database
+from dotenv import dotenv_values
 
-load_dotenv()
+config = dotenv_values(".env")
+mongodb_uri = config['MONGODB_URI']
+db_name = config['DB_NAME']
+
 app = FastAPI()
 
+db = Database(mongodb_uri, db_name)
+drones_collection = db.get_collection("Drones")
+missions_collection = db.get_collection("Missions")
+schedules_collection = db.get_collection("Schedules")
 
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
 
-
-# Endpoint to get all drones
-@app.get("/drones/")
+@app.get("/drones/", response_model=List[Drone])
 async def get_drones():
-    pass
+    try:
+        drones = list(drones_collection.find())
+        return drones
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-# Endpoint to get all drones by availability status
-@app.get("/drones/{status}")
-async def get_drones_by_status(status):
-    pass
+@app.get("/drones/status/{status}", response_model=List[Drone])
+async def get_drones_by_status(status: str):
+    try:
+        drones = list(drones_collection.find({"status": status}))
+        if not drones:
+            raise HTTPException(status_code=404, detail="No drones found with the specified status")
+        return drones
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-# Endpoint to get a specific drone by ID
-@app.get("/drones/{id}")
-async def get_drone_by_id(id):
-    pass
-
-# Endpoint to update a drone's status
-@app.put("/drones/{id}")
-async def update_drone_status(id, status):
-    pass
-
-# Endpoint to create a new drone    
-@app.post("/drones/")
-async def create_drone(id, name, status, current_mission_id,possible_missions_ids, image):
-    pass
-
-# Endpoint to modify possible missions for a drone
-@app.put("/drones/{id}/possible_missions")
-async def modify_possible_missions(id, possible_missions_ids):
-    pass
+@app.get("/drones/id/{id}",response_model=Drone)
+async def get_drone_by_id(id: int):
+    try:
+        drone = drones_collection.find_one({"id": id})
+        if not drone:
+            raise HTTPException(status_code=404, detail="No drones found with the specified id")
+        return drone
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
 
 
-# Endpoint to get all missions
-@app.get("/missions/")
+@app.put("/drones/{id}", response_model=Drone)
+async def update_drone_status(id: int, payload: UpdateStatusPayload):
+    try:
+            drone = drones_collection.find_one({"id": id})
+            if not drone:
+                raise HTTPException(status_code=404, detail="No drones found with the specified id")
+
+            new_status = payload.status
+            drones_collection.update_one({"id": id}, {"$set": {"status": new_status}})
+            updated_drone = drones_collection.find_one({"id": id})
+            return updated_drone
+
+    except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/drones/",response_model=Drone)
+async def create_drone(payload: CreateDronePayload):
+    try:
+            drone = Drone(
+                id=payload.id,
+                name=payload.name,
+                status=payload.status,
+                current_mission_id=payload.current_mission_id,
+                possible_missions_ids=payload.possible_missions_ids,
+            )
+            drone_dict = drone.__dict__
+            drones_collection.insert_one(drone_dict)
+            created_drone = drones_collection.find_one({"id": drone.id})
+            return created_drone
+    except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    
+
+@app.put("/drones/{id}/possible_missions", response_model=Drone)
+async def modify_possible_missions(id: int, payload: ModifyPossibleMissionsPayload):
+    try:
+        drone = drones_collection.find_one({"id": id})
+        if not drone:
+            raise HTTPException(status_code=404, detail="No drones found with the specified id")
+        drones_collection.update_one({"id": id}, {"$set": {"possible_missions_ids": payload.possible_missions_ids}})
+        updated_drone = drones_collection.find_one({"id": id})
+        
+        return updated_drone
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/missions/", response_model=List[Mission])
 async def get_missions():
-    pass
+    try:
+        missions = list(missions_collection.find())
+        return missions
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
 
-# Endpoint to create a new mission
-@app.post("/missions/")
-async def create_mission(id, trjectory,duration,distance):
-    pass
+@app.post("/missions/",response_model=Mission)
+async def create_mission(payload: CreateMissonPayload):
+    try:
+            mission = Mission(
+                id=payload.id,
+                trajectory_id=payload.trajectory_id,
+                duration=payload.duration,
+                priority=payload.priority,
+            )
+            mission_dict = mission.__dict__
+            missions_collection.insert_one(mission_dict)
+            created_mission = missions_collection.find_one({"id": mission.id})
+            return created_mission
+    except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
 
-# Endpoint to get all schedules
-@app.get("/schedules/")
+@app.get("/schedules/", response_model=List[Schedule])
 async def get_schedules():
-    pass
+    try:
+        schedules = list(schedules_collection.find())
+        return schedules
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
+    
+@app.post("/schedules/",response_model=Schedule)
+async def create_schedule(payload: ScheduleCreatePayload):
+    try:
+        schedule = Schedule(
+            id=payload.id,
+            drone_id=payload.drone_id,
+            mission_id=payload.mission_id,
+            start_time=payload.start_time,
+            end_time=payload.end_time,
+            status=payload.status,
+        )
+        schedule_dict = schedule.__dict__
+        schedules_collection.insert_one(schedule_dict)
+        created_schedule = schedules_collection.find_one({"id": schedule.id})
+        return created_schedule
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-# Endpoint to create a new schedule
-@app.post("/schedules/")
-async def create_schedule(id, drone_id, mission_id, start_time, end_time,status):
-    pass
+@app.put("/schedules/{id}",response_model=Schedule)
+async def update_schedule_status(id:int, payload: UpdateStatusPayload):
+    try:
+        existing_schedule = schedules_collection.find_one({"id": id})
+        if not existing_schedule:
+            raise HTTPException(status_code=404, detail=f"Schedule with id {id} not found")
+        schedules_collection.update_one({"id": id}, {"$set": {"status": payload.status}})
+        updated_schedule = schedules_collection.find_one({"id": id})
+        return updated_schedule
 
-# Endpoint to update a schedule's status
-@app.put("/schedules/{id}")
-async def update_schedule_status(id, status):
-    pass
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-# Endpoint to get schedules date range
-@app.get("/schedules/{start_date}/{end_date}")
-async def get_schedules_date_range(start_date, end_date):
-    pass
 
-# Endpoint to get schedules by drone
-@app.get("/schedules/{drone_id}")
-async def get_schedules_by_drone(drone_id):
-    pass
+@app.get("/schedules/{start_date}/{end_date}",response_model=List[Schedule])
+async def get_schedules_date_range(start_date,end_date):
+    try:
+        start_datetime = datetime.strptime(start_date, "%Y-%m-%dT%H:%M:%S")
+        end_datetime = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S")
+        schedules = list(schedules_collection.find({
+            "start_time": {"$gte": start_datetime},
+            "end_time": {"$lte": end_datetime}
+        }))
+        response_schedules = [
+            Schedule(
+                id=schedule["id"],
+                drone_id=schedule["drone_id"],
+                mission_id=schedule["mission_id"],
+                start_time=schedule["start_time"],
+                end_time=schedule["end_time"],
+                status=schedule["status"],
+            )
+            for schedule in schedules
+        ]
 
-mongodb_uri = os.getenv('MONGODB_URI')
-client = MongoClient(mongodb_uri, server_api=ServerApi('1'))
-try:
-    client.admin.command('ping')
-    print("Pinged your deployment. You successfully connected to MongoDB!")
-except Exception as e:
-    print(e)
+        return response_schedules
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+@app.get("/schedules/{drone_id}",response_model=List[Schedule])
+async def get_schedules_by_drone(drone_id:int):
+    try:
+        schedules = list(schedules_collection.find({"drone_id": drone_id}))
+        response_schedules = [
+            Schedule(
+                id=schedule["id"],
+                drone_id=schedule["drone_id"],
+                mission_id=schedule["mission_id"],
+                start_time=schedule["start_time"],
+                end_time=schedule["end_time"],
+                status=schedule["status"],
+            )
+            for schedule in schedules
+        ]
+
+        return response_schedules
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":
