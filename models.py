@@ -35,7 +35,6 @@ class Schedule(BaseModel):
         }
 
 class ScheduleCreatePayload(BaseModel):
-    id: int
     drone_id: int
     mission_id: int
     start_time: datetime    
@@ -43,7 +42,6 @@ class ScheduleCreatePayload(BaseModel):
     status: str
 
 class CreateDronePayload(BaseModel):
-    id: int
     name: str
     status: str
     current_mission_id: Optional[Union[int, str]]
@@ -54,7 +52,6 @@ class UpdateStatusPayload(BaseModel):
      status: str
 
 class CreateMissonPayload(BaseModel):
-    id: int
     trajectory_id: int
     duration: int
     priority: int

@@ -5,12 +5,22 @@ from typing import List
 from models import Drone,Mission,Schedule,ScheduleCreatePayload,CreateDronePayload,UpdateStatusPayload,CreateMissonPayload,ModifyPossibleMissionsPayload
 from db.database import Database
 from dotenv import dotenv_values
+from fastapi.middleware.cors import CORSMiddleware
+from helper import generate_unique_id
 
 config = dotenv_values(".env")
 mongodb_uri = config['MONGODB_URI']
 db_name = config['DB_NAME']
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 db = Database(mongodb_uri, db_name)
 drones_collection = db.get_collection("Drones")
@@ -49,8 +59,7 @@ async def get_drone_by_id(id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
-
-
+        
 @app.put("/drones/{id}", response_model=Drone)
 async def update_drone_status(id: int, payload: UpdateStatusPayload):
     try:
@@ -65,24 +74,26 @@ async def update_drone_status(id: int, payload: UpdateStatusPayload):
 
     except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
-
+    
 
 @app.post("/drones/",response_model=Drone)
 async def create_drone(payload: CreateDronePayload):
     try:
-            drone = Drone(
-                id=payload.id,
-                name=payload.name,
-                status=payload.status,
-                current_mission_id=payload.current_mission_id,
-                possible_missions_ids=payload.possible_missions_ids,
-            )
-            drone_dict = drone.__dict__
-            drones_collection.insert_one(drone_dict)
-            created_drone = drones_collection.find_one({"id": drone.id})
-            return created_drone
+        drone_id = await generate_unique_id(drones_collection)
+
+        drone = Drone(
+            id=drone_id,
+            name=payload.name,
+            status=payload.status,
+            current_mission_id=payload.current_mission_id,
+            possible_missions_ids=payload.possible_missions_ids,
+        )
+        drone_dict = drone.__dict__
+        drones_collection.insert_one(drone_dict)
+        created_drone = drones_collection.find_one({"id": drone_id})
+        return created_drone
     except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
     
 
 @app.put("/drones/{id}/possible_missions", response_model=Drone)
@@ -107,23 +118,25 @@ async def get_missions():
         return missions
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
-
-@app.post("/missions/",response_model=Mission)
+           
+@app.post("/missions/", response_model=Mission)
 async def create_mission(payload: CreateMissonPayload):
     try:
-            mission = Mission(
-                id=payload.id,
-                trajectory_id=payload.trajectory_id,
-                duration=payload.duration,
-                priority=payload.priority,
-            )
-            mission_dict = mission.__dict__
-            missions_collection.insert_one(mission_dict)
-            created_mission = missions_collection.find_one({"id": mission.id})
-            return created_mission
+        mission_id = await generate_unique_id(missions_collection)
+
+        mission = Mission(
+            id=mission_id,
+            trajectory_id=payload.trajectory_id,
+            duration=payload.duration,
+            priority=payload.priority,
+        )
+        mission_dict = mission.__dict__
+        missions_collection.insert_one(mission_dict)
+
+        created_mission = missions_collection.find_one({"id": mission_id})
+        return created_mission
     except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/schedules/", response_model=List[Schedule])
@@ -139,8 +152,10 @@ async def get_schedules():
 @app.post("/schedules/",response_model=Schedule)
 async def create_schedule(payload: ScheduleCreatePayload):
     try:
+        schedule_id = await generate_unique_id(schedules_collection)
+
         schedule = Schedule(
-            id=payload.id,
+            id=schedule_id,
             drone_id=payload.drone_id,
             mission_id=payload.mission_id,
             start_time=payload.start_time,
@@ -149,7 +164,7 @@ async def create_schedule(payload: ScheduleCreatePayload):
         )
         schedule_dict = schedule.__dict__
         schedules_collection.insert_one(schedule_dict)
-        created_schedule = schedules_collection.find_one({"id": schedule.id})
+        created_schedule = schedules_collection.find_one({"id": schedule_id})
         return created_schedule
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
