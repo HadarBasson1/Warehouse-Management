@@ -6,7 +6,6 @@ from models import Drone,Mission,Schedule,ScheduleCreatePayload,CreateDronePaylo
 from db.database import Database
 from dotenv import dotenv_values
 from fastapi.middleware.cors import CORSMiddleware
-from helper import generate_unique_id
 
 config = dotenv_values(".env")
 mongodb_uri = config['MONGODB_URI']
@@ -79,7 +78,11 @@ async def update_drone_status(id: int, payload: UpdateStatusPayload):
 @app.post("/drones/",response_model=Drone)
 async def create_drone(payload: CreateDronePayload):
     try:
-        drone_id = await generate_unique_id(drones_collection)
+        last_drone = drones_collection.find_one(sort=[("id", -1)])
+        if last_drone:
+            drone_id = last_drone["id"] + 1
+        else:
+            drone_id = 1
 
         drone = Drone(
             id=drone_id,
@@ -122,8 +125,11 @@ async def get_missions():
 @app.post("/missions/", response_model=Mission)
 async def create_mission(payload: CreateMissonPayload):
     try:
-        mission_id = await generate_unique_id(missions_collection)
-
+        last_mission = missions_collection.find_one(sort=[("id", -1)])
+        if last_mission:
+            mission_id = last_mission["id"] + 1
+        else:
+            mission_id = 1
         mission = Mission(
             id=mission_id,
             trajectory_id=payload.trajectory_id,
@@ -152,7 +158,11 @@ async def get_schedules():
 @app.post("/schedules/",response_model=Schedule)
 async def create_schedule(payload: ScheduleCreatePayload):
     try:
-        schedule_id = await generate_unique_id(schedules_collection)
+        last_schedule = schedules_collection.find_one(sort=[("id", -1)])
+        if last_schedule:
+            schedule_id = last_schedule["id"] + 1
+        else:
+            schedule_id = 1
 
         schedule = Schedule(
             id=schedule_id,

@@ -44,7 +44,7 @@ class ScheduleCreatePayload(BaseModel):
 class CreateDronePayload(BaseModel):
     name: str
     status: str
-    current_mission_id: Optional[Union[int, str]]
+    current_mission_id: Optional[int]
     possible_missions_ids: List[int]
 
 
